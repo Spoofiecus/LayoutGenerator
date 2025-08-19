@@ -221,6 +221,10 @@ Sub CreateAdvancedLayout()
 
     Dim batchNum As Long, rowInBatch As Long, colInRow As Long
     For batchNum = 0 To numBatches - 1
+        ' Create a new ShapeRange to hold all shapes for the current batch
+        Dim batchShapes As ShapeRange
+        Set batchShapes = New ShapeRange
+
         ' Calculate the top-left origin of the current batch
         Dim batchX As Double, batchY As Double
         batchX = pageStartX + batchNum * (ROLL_WIDTH_MM + batchSpacing)
@@ -247,9 +251,17 @@ Sub CreateAdvancedLayout()
                 Set newShape = baseShape.Duplicate
                 newShape.SetPosition xPos, yPos
 
+                ' Add the newly created shape to the collection for this batch
+                batchShapes.Add newShape
+
                 stickerCount = stickerCount + 1
             Next colInRow
         Next rowInBatch
+
+        ' After the batch is fully laid out, group all the shapes in the collection
+        If batchShapes.Count > 0 Then
+            batchShapes.Group
+        End If
     Next batchNum
 
     ' --- Final Quote Generation ---
