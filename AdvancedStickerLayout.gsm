@@ -106,9 +106,9 @@ Sub CreateAdvancedLayout()
     batchSpacing = DEFAULT_BATCH_SPACING
 
     ' Prompt for bleed option
-    Dim hasBleedStr As String
-    hasBleedStr = LCase(InputBox("Does this job have bleed? (The shape size should reflect this choice)", "Bleed Option", "yes"))
-    hasBleed = (hasBleedStr = "yes")
+    Dim bleedChoice As String
+    bleedChoice = InputBox("Does this job have bleed? (1 for Yes, 0 for No)", "Bleed Option", "1")
+    hasBleed = (bleedChoice = "1")
 
     ' Prompt for quantity
     requestedQuantity = CLng(InputBox("Enter Total Number of Stickers Needed:", "Input Required", "100"))
