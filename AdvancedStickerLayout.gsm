@@ -101,7 +101,13 @@ Sub CreateAdvancedLayout()
     ' Set the document units to millimeters for consistency
     ActiveDocument.Unit = cdrMillimeter
 
-    ' --- User Input Section ---
+    ' --- User Input & Configuration Section ---
+    ' Define default values as constants
+    Const DEFAULT_VINYL_COST As Double = 420.0
+    Const DEFAULT_VAT_RATE As Double = 15.0
+    Const DEFAULT_BATCH_SPACING As Double = 10.0
+
+    ' Declare variables
     Dim stickerWidth As Double
     Dim stickerHeight As Double
     Dim requestedQuantity As Long
@@ -109,32 +115,24 @@ Sub CreateAdvancedLayout()
     Dim vatRate As Double
     Dim batchSpacing As Double
 
-    ' Prompt for sticker dimensions and quantity
-    stickerWidth = CDbl(InputBox("Enter Sticker Width (mm):", "Input Required", "100"))
-    If stickerWidth <= 0 Then Exit Sub ' Exit if user cancels or enters invalid data
-
-    stickerHeight = CDbl(InputBox("Enter Sticker Height (mm):", "Input Required", "50"))
-    If stickerHeight <= 0 Then Exit Sub
-
-    requestedQuantity = CLng(InputBox("Enter Total Number of Stickers Needed:", "Input Required", "100"))
-    If requestedQuantity <= 0 Then Exit Sub
-
-    ' Prompt for quoting parameters
-    vinylCost = CDbl(InputBox("Enter Vinyl Cost per Square Meter (e.g., 420.00):", "Quoting", "420.00"))
-    If vinylCost <= 0 Then Exit Sub
-
-    vatRate = CDbl(InputBox("Enter VAT Rate in Percent (e.g., 15 for 15%):", "Quoting", "15"))
-    If vatRate < 0 Then vatRate = 0
-
-    ' Prompt for layout parameters
-    batchSpacing = CDbl(InputBox("Enter Spacing Between Batches (mm):", "Layout", "10"))
-    If batchSpacing < 0 Then batchSpacing = 0
-
     ' Ensure there's an active selection to use as the base shape
     If ActiveDocument Is Nothing Or ActiveSelection.Shapes.Count = 0 Then
         MsgBox "Please select a base shape for the sticker.", vbExclamation, "No Selection"
         Exit Sub
     End If
+
+    ' Get sticker dimensions from the selected shape
+    stickerWidth = ActiveSelection.Shapes(1).SizeWidth
+    stickerHeight = ActiveSelection.Shapes(1).SizeHeight
+
+    ' Set values from constants
+    vinylCost = DEFAULT_VINYL_COST
+    vatRate = DEFAULT_VAT_RATE
+    batchSpacing = DEFAULT_BATCH_SPACING
+
+    ' Prompt for the only remaining required input
+    requestedQuantity = CLng(InputBox("Enter Total Number of Stickers Needed:", "Input Required", "100"))
+    If requestedQuantity <= 0 Then Exit Sub
 
     ' --- Calculation Step ---
     Dim metrics As StickerMetrics

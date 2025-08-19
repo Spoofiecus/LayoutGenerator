@@ -66,10 +66,10 @@ Sub CreateStickerLayout()
         rowCounter = Int(i / stickersPerRow)
         colCounter = i Mod stickersPerRow
 
-        ' Calculate Y position
+        ' Calculate corner Y position
         yPos = startY - rowCounter * (stickerHeight + spacingY)
 
-        ' Calculate X position based on boustrophedon layout
+        ' Calculate corner X position based on boustrophedon layout
         If (rowCounter Mod 2) = 0 Then
             ' Even row: left-to-right
             xPos = startX + colCounter * (stickerWidth + spacingX)
@@ -78,9 +78,9 @@ Sub CreateStickerLayout()
             xPos = startX + (stickersPerRow - 1 - colCounter) * (stickerWidth + spacingX)
         End If
 
-        ' Create a duplicate of the first shape and position it
+        ' Create a duplicate of the first shape and position it by its center
         Set duplicateShape = baseShape.Duplicate
-        duplicateShape.SetPosition xPos, yPos
+        duplicateShape.SetPosition xPos + stickerWidth / 2, yPos - stickerHeight / 2
     Next i
 
     MsgBox "Stickers created successfully! Cutting should now start from the top-left.", vbInformation, "Success"
