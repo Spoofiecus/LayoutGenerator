@@ -1,107 +1,77 @@
-' Custom data type to hold the results of the pricing calculation
-Private Type StickerMetrics
+' Custom data type to hold the results for a single orientation calculation
+Private Type OrientationMetrics
     PricePerSticker As Double
     StickersPerRow As Long
-    IsVertical As Boolean ' True if vertical orientation is optimal
-    RowHeight As Double     ' The height of a single row of stickers (including bleed/gap)
-    LayoutGap As Long       ' The gap to use between stickers in the layout
+    RowHeight As Double
 End Type
 
-' --- Function to Calculate Sticker Price and Layout Metrics ---
-Private Function CalculatePrice(ByVal W As Double, ByVal H As Double, ByVal costPerSqm As Double, ByVal hasBleed As Boolean) As StickerMetrics
+' --- Function to Calculate Metrics for a Single Orientation ---
+Private Function CalculateOrientationMetrics(ByVal W As Double, ByVal H As Double, ByVal costPerSqm As Double, ByVal useBleedLogic As Boolean) As OrientationMetrics
     ' --- Constants ---
     Const ROLL_WIDTH_MM As Long = 650
     Const MIN_PRICE_PER_STICKER As Double = 0.2
 
-    ' Determine the gap/bleed amount based on user choice
-    Dim bleedAmount As Long
-    If hasBleed Then
-        bleedAmount = 0 ' The bleed is already in the shape's dimensions
+    ' This function calculates layout and pricing for a single orientation.
+    ' W and H are the dimensions of the sticker for this specific orientation.
+
+    ' Determine the gap amount based on whether the job has bleed.
+    ' If it has bleed, the user has sized the shape to include it, so the gap is 0.
+    ' If it does not have bleed, we add a 1mm safety gap.
+    Dim layoutGap As Long
+    If useBleedLogic Then
+        layoutGap = 0
     Else
-        bleedAmount = 1 ' Add a 1mm safety gap for non-bleed items
+        layoutGap = 1
     End If
 
-    Dim result As StickerMetrics
-    result.LayoutGap = bleedAmount ' Store the gap for the layout logic
-    Dim P_horizontal As Double, P_vertical As Double
-
-    ' --- Horizontal Orientation Calculation ---
+    ' --- Layout Calculation ---
     Dim W_with_gap As Double
-    W_with_gap = W + bleedAmount
+    W_with_gap = W + layoutGap
 
-    Dim S_raw_horizontal As Double
-    S_raw_horizontal = ROLL_WIDTH_MM / W_with_gap
-
-    Dim S_rounded_horizontal As Long
-    If (S_raw_horizontal - Int(S_raw_horizontal)) >= 0.95 Then
-        S_rounded_horizontal = Int(S_raw_horizontal) + 1
+    Dim stickersPerRowRaw As Double
+    If W_with_gap > 0 Then
+        stickersPerRowRaw = ROLL_WIDTH_MM / W_with_gap
     Else
-        S_rounded_horizontal = Int(S_raw_horizontal)
+        stickersPerRowRaw = 0
     End If
 
-    If S_rounded_horizontal > 0 Then
+    Dim roundedStickersPerRow As Long
+    If (stickersPerRowRaw - Int(stickersPerRowRaw)) >= 0.95 Then
+        roundedStickersPerRow = Int(stickersPerRowRaw) + 1
+    Else
+        roundedStickersPerRow = Int(stickersPerRowRaw)
+    End If
+
+    ' --- Pricing Calculation ---
+    Dim price As Double
+    If roundedStickersPerRow > 0 Then
+        ' The price is always based on the physical vinyl used (the layout size)
         Dim H_with_gap_meters As Double
-        H_with_gap_meters = (H + bleedAmount) / 1000
+        H_with_gap_meters = (H + layoutGap) / 1000
 
-        Dim Area_horizontal As Double
-        Area_horizontal = (ROLL_WIDTH_MM / 1000) * H_with_gap_meters
+        Dim rowArea As Double
+        rowArea = (ROLL_WIDTH_MM / 1000) * H_with_gap_meters
 
-        Dim Row_Cost_horizontal As Double
-        Row_Cost_horizontal = Area_horizontal * costPerSqm
+        Dim rowCost As Double
+        rowCost = rowArea * costPerSqm
 
-        P_horizontal = Row_Cost_horizontal / S_rounded_horizontal
+        price = rowCost / roundedStickersPerRow
     Else
-        P_horizontal = 1E+30
-    End If
-
-    ' --- Vertical Orientation Calculation ---
-    Dim H_with_gap As Double
-    H_with_gap = H + bleedAmount
-
-    Dim S_raw_vertical As Double
-    S_raw_vertical = ROLL_WIDTH_MM / H_with_gap
-
-    Dim S_rounded_vertical As Long
-    If (S_raw_vertical - Int(S_raw_vertical)) >= 0.95 Then
-        S_rounded_vertical = Int(S_raw_vertical) + 1
-    Else
-        S_rounded_vertical = Int(S_raw_vertical)
-    End If
-
-    If S_rounded_vertical > 0 Then
-        Dim W_with_gap_meters As Double
-        W_with_gap_meters = (W + bleedAmount) / 1000
-
-        Dim Area_vertical As Double
-        Area_vertical = (ROLL_WIDTH_MM / 1000) * W_with_gap_meters
-
-        Dim Row_Cost_vertical As Double
-        Row_Cost_vertical = Area_vertical * costPerSqm
-
-        P_vertical = Row_Cost_vertical / S_rounded_vertical
-    Else
-        P_vertical = 1E+30
-    End If
-
-    ' --- Compare and Finalize Results ---
-    If P_horizontal <= P_vertical Then
-        result.PricePerSticker = P_horizontal
-        result.StickersPerRow = S_rounded_horizontal
-        result.IsVertical = False
-        result.RowHeight = H + bleedAmount
-    Else
-        result.PricePerSticker = P_vertical
-        result.StickersPerRow = S_rounded_vertical
-        result.IsVertical = True
-        result.RowHeight = W + bleedAmount
+        price = 1E+30 ' A very large number to represent infinity
     End If
 
     ' Enforce minimum price
-    If result.PricePerSticker < MIN_PRICE_PER_STICKER Then
-        result.PricePerSticker = MIN_PRICE_PER_STICKER
+    If price < MIN_PRICE_PER_STICKER Then
+        price = MIN_PRICE_PER_STICKER
     End If
 
-    CalculatePrice = result
+    ' --- Return Results ---
+    Dim result As OrientationMetrics
+    result.PricePerSticker = price
+    result.StickersPerRow = roundedStickersPerRow
+    result.RowHeight = H + layoutGap
+
+    CalculateOrientationMetrics = result
 End Function
 
 Sub CreateAdvancedLayout()
@@ -137,42 +107,78 @@ Sub CreateAdvancedLayout()
 
     ' Prompt for bleed option
     Dim hasBleedStr As String
-    hasBleedStr = LCase(InputBox("Does this layout include bleed? (yes/no)", "Bleed Option", "yes"))
+    hasBleedStr = LCase(InputBox("Does this job have bleed? (The shape size should reflect this choice)", "Bleed Option", "yes"))
     hasBleed = (hasBleedStr = "yes")
 
     ' Prompt for quantity
     requestedQuantity = CLng(InputBox("Enter Total Number of Stickers Needed:", "Input Required", "100"))
     If requestedQuantity <= 0 Then Exit Sub
 
-    ' --- Calculation Step ---
-    Dim metrics As StickerMetrics
-    metrics = CalculatePrice(stickerWidth, stickerHeight, vinylCost, hasBleed)
+    ' --- Calculation & Decision Step ---
+    ' Calculate metrics for both horizontal and vertical orientations
+    Dim h_metrics As OrientationMetrics, v_metrics As OrientationMetrics
+    h_metrics = CalculateOrientationMetrics(stickerWidth, stickerHeight, vinylCost, hasBleed)
+    v_metrics = CalculateOrientationMetrics(stickerHeight, stickerWidth, vinylCost, hasBleed)
+
+    ' Decide which orientation is better, prompting the user in ambiguous cases
+    Dim isVertical As Boolean
+    Const PRICE_TOLERANCE As Double = 0.01 ' 1 cent
+
+    If Abs(h_metrics.PricePerSticker - v_metrics.PricePerSticker) > PRICE_TOLERANCE Then
+        ' Prices are clearly different, choose the cheaper one automatically
+        isVertical = (v_metrics.PricePerSticker < h_metrics.PricePerSticker)
+    Else
+        ' Prices are nearly identical, prompt the user to choose
+        Dim prompt As String
+        prompt = "Ambiguous choice: Prices are nearly identical." & vbCrLf & vbCrLf
+        prompt = prompt & "1. Horizontal: " & h_metrics.StickersPerRow & " per row @ R" & Format(h_metrics.PricePerSticker, "0.00") & vbCrLf
+        prompt = prompt & "2. Vertical:   " & v_metrics.StickersPerRow & " per row @ R" & Format(v_metrics.PricePerSticker, "0.00") & vbCrLf & vbCrLf
+        prompt = prompt & "Enter 1 for Horizontal or 2 for Vertical."
+
+        Dim choice As String
+        choice = InputBox(prompt, "Choose Orientation", "1")
+
+        isVertical = (choice = "2")
+    End If
+
+    ' --- Finalize Metrics and Prepare for Layout ---
+    Dim finalPrice As Double
+    Dim stickersPerRow As Long
+    Dim rowHeight As Double
+    Dim layoutGap As Long
+
+    If isVertical Then
+        finalPrice = v_metrics.PricePerSticker
+        stickersPerRow = v_metrics.StickersPerRow
+        rowHeight = v_metrics.RowHeight
+    Else
+        finalPrice = h_metrics.PricePerSticker
+        stickersPerRow = h_metrics.StickersPerRow
+        rowHeight = h_metrics.RowHeight
+    End If
+
+    ' Determine the gap for layout (0 if bleed, 1 if no bleed)
+    If hasBleed Then layoutGap = 0 Else layoutGap = 1
 
     ' --- Main Layout Logic ---
     ' Get the base shape to duplicate
     Dim baseShape As Shape
     Set baseShape = ActiveSelection.Shapes(1)
 
-    ' Determine the layout dimensions based on optimal orientation
-    Dim layoutWidth As Double, layoutHeight As Double
-    Dim layoutGap As Long
-    layoutGap = metrics.LayoutGap
-
     ' Set the size of the base shape to the detected dimensions first
     baseShape.SetSize stickerWidth, stickerHeight
 
-    ' Rotate the shape if vertical orientation is more efficient
-    If metrics.IsVertical Then
+    ' Rotate the shape if vertical orientation was chosen
+    If isVertical Then
         baseShape.Rotate 90
     End If
 
     ' Now get the final layout dimensions from the potentially rotated shape
+    Dim layoutWidth As Double, layoutHeight As Double
     layoutWidth = baseShape.SizeWidth
     layoutHeight = baseShape.SizeHeight
 
     ' Calculate total stickers needed (rounding up to a full row)
-    Dim stickersPerRow As Long
-    stickersPerRow = metrics.StickersPerRow
     If stickersPerRow = 0 Then
         MsgBox "Cannot fit any stickers on the roll. Please check dimensions.", vbCritical, "Layout Error"
         Exit Sub
@@ -186,11 +192,14 @@ Sub CreateAdvancedLayout()
 
     ' Calculate batch properties
     Const BATCH_MAX_HEIGHT As Long = 350
-    Dim rowHeight As Double
-    rowHeight = metrics.RowHeight
 
     Dim rowsPerBatch As Long
-    rowsPerBatch = Int(BATCH_MAX_HEIGHT / rowHeight)
+    If rowHeight > 0 Then
+        rowsPerBatch = Int(BATCH_MAX_HEIGHT / rowHeight)
+    Else
+        rowsPerBatch = 0
+    End If
+
     If rowsPerBatch = 0 Then
         MsgBox "A single row is taller than the maximum batch height of " & BATCH_MAX_HEIGHT & "mm.", vbCritical, "Layout Error"
         Exit Sub
@@ -223,21 +232,17 @@ Sub CreateAdvancedLayout()
             If globalRow >= numRows Then Exit For
 
             For colInRow = 0 To stickersPerRow - 1
-                ' Check if we have created enough stickers
                 If stickerCount >= totalStickers Then Exit For
 
-                ' Calculate sticker center position with boustrophedon layout
                 Dim xPos As Double, yPos As Double
-
                 yPos = batchY - (rowInBatch * rowHeight) - (layoutHeight / 2)
 
-                If (rowInBatch Mod 2) = 0 Then ' Even rows: Left-to-Right
+                If (rowInBatch Mod 2) = 0 Then
                     xPos = batchX + (colInRow * (layoutWidth + layoutGap)) + (layoutWidth / 2)
-                Else ' Odd rows: Right-to-Left
+                Else
                     xPos = batchX + ((stickersPerRow - 1 - colInRow) * (layoutWidth + layoutGap)) + (layoutWidth / 2)
                 End If
 
-                ' Create and position the duplicate
                 Dim newShape As Shape
                 Set newShape = baseShape.Duplicate
                 newShape.SetPosition xPos, yPos
@@ -250,29 +255,27 @@ Sub CreateAdvancedLayout()
     ' --- Final Quote Generation ---
     Dim quote As String
     Dim totalCostExclVat As Double
-    totalCostExclVat = totalStickers * metrics.PricePerSticker
+    totalCostExclVat = totalStickers * finalPrice
 
     Dim totalCostInclVat As Double
     totalCostInclVat = totalCostExclVat * (1 + (vatRate / 100))
 
     Const MIN_ORDER_AMOUNT As Double = 100.00
 
-    ' Build the quote string
     quote = "--- Customer Quote ---" & vbCrLf & vbCrLf
     quote = quote & "Sticker Details: " & stickerWidth & "x" & stickerHeight & "mm" & vbCrLf
     quote = quote & "Bleed/Gap Applied: " & IIf(hasBleed, "Yes (used shape size as-is)", "No (added " & layoutGap & "mm gap)") & vbCrLf
-    quote = quote & "Optimal Orientation: " & IIf(metrics.IsVertical, "Vertical", "Horizontal") & vbCrLf
+    quote = quote & "Chosen Orientation: " & IIf(isVertical, "Vertical", "Horizontal") & vbCrLf
     quote = quote & "Stickers per Row: " & stickersPerRow & vbCrLf & vbCrLf
 
     quote = quote & "Total Stickers to Produce: " & totalStickers & " (" & numRows & " rows)" & vbCrLf
-    quote = quote & "Price per Sticker (excl. VAT): R " & Format(metrics.PricePerSticker, "0.00") & vbCrLf & vbCrLf
+    quote = quote & "Price per Sticker (excl. VAT): R " & Format(finalPrice, "0.00") & vbCrLf & vbCrLf
 
     quote = quote & "--------------------------------" & vbCrLf
     quote = quote & "Total (Excl. VAT): R " & Format(totalCostExclVat, "0.00") & vbCrLf
     quote = quote & "Total (Incl. " & vatRate & "% VAT): R " & Format(totalCostInclVat, "0.00") & vbCrLf
     quote = quote & "--------------------------------" & vbCrLf & vbCrLf
 
-    ' Check for minimum order amount
     If totalCostExclVat < MIN_ORDER_AMOUNT Then
         quote = quote & "NOTE: YOUR ORDER IS UNDER R" & MIN_ORDER_AMOUNT & ".00 EXCL VAT." & vbCrLf
         quote = quote & "WE HAVE A MINIMUM ORDER AMOUNT OF R" & MIN_ORDER_AMOUNT & ".00 EXCL VAT." & vbCrLf & vbCrLf
@@ -281,7 +284,6 @@ Sub CreateAdvancedLayout()
     quote = quote & "Layout has been generated with " & numBatches & " batch(es)." & vbCrLf
     quote = quote & "Please let us know if this quote is accepted to proceed with printing."
 
-    ' Display the final quote
     MsgBox quote, vbInformation, "Layout & Quote Complete"
 
 End Sub
