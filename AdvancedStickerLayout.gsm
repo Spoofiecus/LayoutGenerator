@@ -215,54 +215,58 @@ Sub CreateAdvancedLayout()
 
     Const ROLL_WIDTH_MM As Long = 650
 
-    ' --- Layout Loop ---
-    Dim stickerCount As Long
-    stickerCount = 0
+    ' --- Layout Loop (Reversed) ---
+    ' Create an array of ShapeRange objects, one for each batch, to hold shapes for grouping.
+    Dim batchShapeRanges() As ShapeRange
+    ReDim batchShapeRanges(0 To numBatches - 1)
+    Dim i As Long
+    For i = 0 To numBatches - 1
+        Set batchShapeRanges(i) = New ShapeRange
+    Next i
 
-    Dim batchNum As Long, rowInBatch As Long, colInRow As Long
-    For batchNum = 0 To numBatches - 1
-        ' Create a new ShapeRange to hold all shapes for the current batch
-        Dim batchShapes As ShapeRange
-        Set batchShapes = New ShapeRange
+    ' Loop backwards from the last sticker to the first to ensure top-left cutting start.
+    For i = totalStickers - 1 To 0 Step -1
+        ' Calculate the sticker's global row and column index
+        Dim globalRow As Long, globalCol As Long
+        globalRow = Int(i / stickersPerRow)
+        globalCol = i Mod stickersPerRow
 
-        ' Calculate the top-left origin of the current batch
+        ' Calculate which batch this sticker belongs to, and its row within that batch
+        Dim batchNum As Long, rowInBatch As Long
+        batchNum = Int(globalRow / rowsPerBatch)
+        rowInBatch = globalRow Mod rowsPerBatch
+
+        ' Calculate the top-left origin of the batch this sticker belongs to
         Dim batchX As Double, batchY As Double
         batchX = pageStartX + batchNum * (ROLL_WIDTH_MM + batchSpacing)
         batchY = pageStartY
 
-        For rowInBatch = 0 To rowsPerBatch - 1
-            Dim globalRow As Long
-            globalRow = batchNum * rowsPerBatch + rowInBatch
-            If globalRow >= numRows Then Exit For
+        ' Calculate the sticker's final X and Y position
+        Dim xPos As Double, yPos As Double
+        yPos = batchY - (rowInBatch * rowHeight) - (layoutHeight / 2)
 
-            For colInRow = 0 To stickersPerRow - 1
-                If stickerCount >= totalStickers Then Exit For
-
-                Dim xPos As Double, yPos As Double
-                yPos = batchY - (rowInBatch * rowHeight) - (layoutHeight / 2)
-
-                If (rowInBatch Mod 2) = 0 Then
-                    xPos = batchX + (colInRow * (layoutWidth + layoutGap)) + (layoutWidth / 2)
-                Else
-                    xPos = batchX + ((stickersPerRow - 1 - colInRow) * (layoutWidth + layoutGap)) + (layoutWidth / 2)
-                End If
-
-                Dim newShape As Shape
-                Set newShape = baseShape.Duplicate
-                newShape.SetPosition xPos, yPos
-
-                ' Add the newly created shape to the collection for this batch
-                batchShapes.Add newShape
-
-                stickerCount = stickerCount + 1
-            Next colInRow
-        Next rowInBatch
-
-        ' After the batch is fully laid out, group all the shapes in the collection
-        If batchShapes.Count > 0 Then
-            batchShapes.Group
+        ' Apply boustrophedon (snake-like) layout for the X position
+        If (rowInBatch Mod 2) = 0 Then ' Even rows are Left-to-Right
+            xPos = batchX + (globalCol * (layoutWidth + layoutGap)) + (layoutWidth / 2)
+        Else ' Odd rows are Right-to-Left
+            xPos = batchX + ((stickersPerRow - 1 - globalCol) * (layoutWidth + layoutGap)) + (layoutWidth / 2)
         End If
-    Next batchNum
+
+        ' Create the shape and set its position
+        Dim newShape As Shape
+        Set newShape = baseShape.Duplicate
+        newShape.SetPosition xPos, yPos
+
+        ' Add the new shape to the correct batch's ShapeRange for grouping later
+        batchShapeRanges(batchNum).Add newShape
+    Next i
+
+    ' After creating all shapes in reverse order, group each batch
+    For i = 0 To numBatches - 1
+        If batchShapeRanges(i).Count > 0 Then
+            batchShapeRanges(i).Group
+        End If
+    Next i
 
     ' --- Final Quote Generation ---
     Dim quote As String
