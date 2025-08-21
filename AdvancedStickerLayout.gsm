@@ -45,12 +45,12 @@ Private Function CalculateOrientationMetrics(ByVal W As Double, ByVal H As Doubl
     ' --- Pricing Calculation ---
     Dim price As Double
     If roundedStickersPerRow > 0 Then
-        ' The price is always based on the physical vinyl used (the layout size)
-        Dim H_with_gap_meters As Double
-        H_with_gap_meters = (H + layoutGap) / 1000
+        ' The price is based on the cutline size (original H), not the full layout size.
+        Dim H_meters As Double
+        H_meters = H / 1000
 
         Dim rowArea As Double
-        rowArea = (ROLL_WIDTH_MM / 1000) * H_with_gap_meters
+        rowArea = (ROLL_WIDTH_MM / 1000) * H_meters
 
         Dim rowCost As Double
         rowCost = rowArea * costPerSqm
