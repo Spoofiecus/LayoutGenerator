@@ -240,7 +240,11 @@ Sub CreateAdvancedLayout()
     Const MIN_ORDER_AMOUNT As Double = 100.00
 
     quote = "--- Customer Quote ---" & vbCrLf & vbCrLf
-    quote = quote & "Sticker Details: " & stickerWidth & "x" & stickerHeight & "mm" & vbCrLf
+    If hasBleed Then
+        quote = quote & "Sticker Details: " & (stickerWidth - 1) & "x" & (stickerHeight - 1) & "mm (Cutline Size)" & vbCrLf
+    Else
+        quote = quote & "Sticker Details: " & stickerWidth & "x" & stickerHeight & "mm" & vbCrLf
+    End If
     quote = quote & "Bleed/Gap Applied: " & IIf(hasBleed, "Yes (user sized shape with bleed)", "No (1mm gap added for layout)") & vbCrLf
     quote = quote & "Chosen Orientation: " & IIf(isVertical, "Vertical", "Horizontal") & vbCrLf
     quote = quote & "Stickers per Row: " & stickersPerRow & vbCrLf & vbCrLf
