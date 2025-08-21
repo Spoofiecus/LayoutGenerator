@@ -1,6 +1,6 @@
 ' Custom data type to hold the results for a single orientation calculation
 Private Type OrientationMetrics
-    PricePerSticker As Double
+    PricePerSticker As Currency ' Use Currency for high-precision financial math
     StickersPerRow As Long
     RowHeight As Double
 End Type
@@ -9,18 +9,17 @@ End Type
 Private Function CalculateOrientationMetrics(ByVal W As Double, ByVal H As Double, ByVal costPerSqm As Double, ByVal useBleedLogic As Boolean) As OrientationMetrics
     ' --- Constants ---
     Const ROLL_WIDTH_MM As Long = 650
-    Const MIN_PRICE_PER_STICKER As Double = 0.2
+    Const MIN_PRICE_PER_STICKER As Currency = 0.2
 
     ' Determine the gap for the layout calculation based on bleed option
     Dim layoutGap As Long
     If useBleedLogic Then
-        layoutGap = 0 ' User's shape size includes bleed, so no extra gap needed for layout
+        layoutGap = 0
     Else
-        layoutGap = 1 ' Add a 1mm safety gap for non-bleed items
+        layoutGap = 1
     End If
 
     ' --- Stickers per Row Calculation (Layout) ---
-    ' This is always rounded down to the nearest whole number.
     Dim stickersPerRow As Long
     If (W + layoutGap) > 0 Then
         stickersPerRow = Int(ROLL_WIDTH_MM / (W + layoutGap))
@@ -28,22 +27,28 @@ Private Function CalculateOrientationMetrics(ByVal W As Double, ByVal H As Doubl
         stickersPerRow = 0
     End If
 
-    ' --- Pricing Calculation (based on user's final spreadsheet formula) ---
-    Dim price As Double
+    ' --- Pricing Calculation (based on final user spreadsheet logic) ---
+    Dim price As Currency
     If stickersPerRow > 0 Then
         ' 1. Calculate the 'allocated width' for each sticker on the roll
-        Dim allocatedWidth As Double
+        Dim allocatedWidth As Double ' Keep as double for division precision
         allocatedWidth = ROLL_WIDTH_MM / stickersPerRow
 
         ' 2. Calculate the area of vinyl consumed by one sticker using its allocated width
-        ' The height used is the original cutline height (H)
+        '    The dimension used for pricing depends on whether the source shape included bleed.
+        Dim pricingH As Double
+        If useBleedLogic Then
+            pricingH = H - 1
+        Else
+            pricingH = H
+        End If
         Dim consumedAreaSqm As Double
-        consumedAreaSqm = (allocatedWidth * H) / 1000000
+        consumedAreaSqm = (allocatedWidth * pricingH) / 1000000
 
-        ' 3. Calculate the final price using the vinyl cost
-        price = consumedAreaSqm * costPerSqm
+        ' 3. Calculate the final price using the vinyl cost. No markup.
+        price = CCur(consumedAreaSqm * costPerSqm)
     Else
-        price = 1E+30 ' A very large number to represent infinity
+        price = 999999 ' A very large number for Currency type
     End If
 
     ' Enforce minimum price per sticker
@@ -55,7 +60,7 @@ Private Function CalculateOrientationMetrics(ByVal W As Double, ByVal H As Doubl
     Dim result As OrientationMetrics
     result.PricePerSticker = price
     result.StickersPerRow = stickersPerRow
-    result.RowHeight = H + layoutGap ' Row height for layout still needs the gap
+    result.RowHeight = H + layoutGap
 
     CalculateOrientationMetrics = result
 End Function
@@ -126,7 +131,7 @@ Sub CreateAdvancedLayout()
     End If
 
     ' --- Finalize Metrics and Prepare for Layout ---
-    Dim finalPrice As Double
+    Dim finalPrice As Currency
     Dim stickersPerRow As Long
     Dim rowHeight As Double
     Dim layoutGap As Long
