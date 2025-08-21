@@ -10,13 +10,9 @@ Private Function CalculateOrientationMetrics(ByVal W As Double, ByVal H As Doubl
     ' --- Constants ---
     Const ROLL_WIDTH_MM As Long = 650
     Const MIN_PRICE_PER_STICKER As Double = 0.2
+    Const MARKUP_PERCENTAGE As Double = 1.15 ' 15% markup
 
-    ' This function calculates layout and pricing for a single orientation.
-    ' W and H are the dimensions of the sticker for this specific orientation.
-
-    ' Determine the gap amount based on whether the job has bleed.
-    ' If it has bleed, the user has sized the shape to include it, so the gap is 0.
-    ' If it does not have bleed, we add a 1mm safety gap.
+    ' Determine the gap for the layout calculation based on bleed option
     Dim layoutGap As Long
     If useBleedLogic Then
         layoutGap = 0
@@ -24,43 +20,37 @@ Private Function CalculateOrientationMetrics(ByVal W As Double, ByVal H As Doubl
         layoutGap = 1
     End If
 
-    ' --- Layout Calculation ---
-    Dim W_with_gap As Double
-    W_with_gap = W + layoutGap
-
-    Dim stickersPerRowRaw As Double
-    If W_with_gap > 0 Then
-        stickersPerRowRaw = ROLL_WIDTH_MM / W_with_gap
+    ' --- Stickers per Row Calculation (Layout) ---
+    ' This now ALWAYS rounds down. The flawed 0.95 rule is removed.
+    Dim stickersPerRow As Long
+    If (W + layoutGap) > 0 Then
+        stickersPerRow = Int(ROLL_WIDTH_MM / (W + layoutGap))
     Else
-        stickersPerRowRaw = 0
+        stickersPerRow = 0
     End If
 
-    Dim roundedStickersPerRow As Long
-    If (stickersPerRowRaw - Int(stickersPerRowRaw)) >= 0.95 Then
-        roundedStickersPerRow = Int(stickersPerRowRaw) + 1
-    Else
-        roundedStickersPerRow = Int(stickersPerRowRaw)
-    End If
-
-    ' --- Pricing Calculation ---
+    ' --- Pricing Calculation (based on user's spreadsheet formula) ---
     Dim price As Double
-    If roundedStickersPerRow > 0 Then
-        ' The price is based on the cutline size (original H), not the full layout size.
-        Dim H_meters As Double
-        H_meters = H / 1000
+    If stickersPerRow > 0 Then
+        ' 1. Calculate the 'allocated width' for each sticker on the roll
+        Dim allocatedWidth As Double
+        allocatedWidth = ROLL_WIDTH_MM / stickersPerRow
 
-        Dim rowArea As Double
-        rowArea = (ROLL_WIDTH_MM / 1000) * H_meters
+        ' 2. Calculate the area of vinyl consumed by one sticker using its allocated width
+        Dim consumedAreaSqm As Double
+        consumedAreaSqm = (allocatedWidth * H) / 1000000
 
-        Dim rowCost As Double
-        rowCost = rowArea * costPerSqm
+        ' 3. Calculate the base price using the vinyl cost
+        Dim basePrice As Double
+        basePrice = consumedAreaSqm * costPerSqm
 
-        price = rowCost / roundedStickersPerRow
+        ' 4. Apply the final 15% markup
+        price = basePrice * MARKUP_PERCENTAGE
     Else
         price = 1E+30 ' A very large number to represent infinity
     End If
 
-    ' Enforce minimum price
+    ' Enforce minimum price per sticker
     If price < MIN_PRICE_PER_STICKER Then
         price = MIN_PRICE_PER_STICKER
     End If
@@ -68,8 +58,8 @@ Private Function CalculateOrientationMetrics(ByVal W As Double, ByVal H As Doubl
     ' --- Return Results ---
     Dim result As OrientationMetrics
     result.PricePerSticker = price
-    result.StickersPerRow = roundedStickersPerRow
-    result.RowHeight = H + layoutGap
+    result.StickersPerRow = stickersPerRow
+    result.RowHeight = H + layoutGap ' Row height for layout still needs the gap
 
     CalculateOrientationMetrics = result
 End Function
@@ -80,7 +70,7 @@ Sub CreateAdvancedLayout()
 
     ' --- User Input & Configuration Section ---
     ' Define default values as constants
-    Const DEFAULT_VINYL_COST As Double = 420.0
+    Const DEFAULT_VINYL_COST As Double = 460.0 ' Updated to match user's spreadsheet
     Const DEFAULT_VAT_RATE As Double = 15.0
     Const DEFAULT_BATCH_SPACING As Double = 10.0
 
